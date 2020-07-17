@@ -16,6 +16,7 @@ import collections
 import collections.abc
 import copy
 import re
+import uuid
 from typing import List, Type
 
 from google.protobuf import descriptor_pb2
@@ -51,7 +52,7 @@ class MessageMeta(type):
         # inside a function local scope; correct this.
         if "<locals>" in local_path:
             ix = local_path.index("<locals>")
-            local_path = local_path[: ix - 1] + local_path[ix + 1 :]
+            local_path = local_path[: ix - 1] + local_path[ix + 1:]
 
         # Determine the full name in protocol buffers.
         full_name = ".".join((package,) + local_path).lstrip(".")
@@ -221,7 +222,7 @@ class MessageMeta(type):
         # attached as nested types here.
         for child_path in copy.copy(file_info.nested).keys():
             if local_path == child_path[:-1]:
-                desc.nested_type.add().MergeFrom(file_info.nested.pop(child_path),)
+                desc.nested_type.add().MergeFrom(file_info.nested.pop(child_path), )
 
         # Add the descriptor to the file if it is a top-level descriptor,
         # or to a "holding area" for nested messages otherwise.
@@ -254,7 +255,9 @@ class MessageMeta(type):
 
         # Generate the descriptor for the file if it is ready.
         if file_info.ready(new_class=cls):
-            file_info.generate_file_pb()
+            filename_salt_attr = "_fixed_filename_salt"
+            salt = full_name.lower() if filename_salt_attr in attrs and attrs[filename_salt_attr] else str(uuid.uuid4())[0:8]
+            file_info.generate_file_pb(salt=salt)
 
         # Done; return the class.
         return cls
@@ -363,7 +366,7 @@ class Message(metaclass=MessageMeta):
         #
         # Sanity check: Did we get something not on that list? Error if so.
         if mapping and not isinstance(
-            mapping, (collections.abc.Mapping, type(self), self._meta.pb)
+                mapping, (collections.abc.Mapping, type(self), self._meta.pb)
         ):
             raise TypeError(
                 "Invalid constructor input for %s: %r"
@@ -548,13 +551,13 @@ class _MessageInfo:
     """
 
     def __init__(
-        self,
-        *,
-        fields: List[Field],
-        package: str,
-        full_name: str,
-        marshal: Marshal,
-        options: descriptor_pb2.MessageOptions
+            self,
+            *,
+            fields: List[Field],
+            package: str,
+            full_name: str,
+            marshal: Marshal,
+            options: descriptor_pb2.MessageOptions
     ) -> None:
         self.package = package
         self.full_name = full_name
